@@ -1,0 +1,38 @@
+{
+  "name": "face-recognition-app",
+  "version": "1.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.4",
+    "@shopify/react-native-skia": "^1.5.3",
+    "@types/react": "~18.2.79",
+    "expo": "~51.0.28",
+    "expo-build-properties": "^0.12.5",
+    "expo-camera": "^15.0.16",
+    "expo-dev-client": "~4.0.29",
+    "expo-face-detector": "^12.7.1",
+    "expo-image-picker": "^15.0.7",
+    "expo-media-library": "^16.0.5",
+    "expo-modules-core": "^1.12.26",
+    "expo-status-bar": "~1.12.1",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-dropdown-picker": "^5.4.6",
+    "react-native-reanimated": "^3.16.1",
+    "react-native-video": "^6.7.0",
+    "react-native-vision-camera": "^4.6.1",
+    "react-native-vision-camera-face-detector": "^1.7.1",
+    "react-native-worklets-core": "^1.5.0",
+    "typescript": "~5.3.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
+}

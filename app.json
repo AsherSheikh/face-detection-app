@@ -1,0 +1,89 @@
+{
+  "expo": {
+    "name": "face-recognition-app",
+    "slug": "face-recognition-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.asherxheikh.facerecognitionapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera for face recognition",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photos for face comparison",
+        "NSPhotoLibraryAddUsageDescription": "This app needs permission to save photos",
+        "NSMicrophoneUsageDescription": "This app uses the microphone for video recording"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.asherxheikh.facerecognitionapp",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "RECORD_AUDIO"]
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "14.0"
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Face Recognition to access your camera.",
+          "microphonePermission": "Allow Face Recognition to access your microphone."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Face Recognition to access your photos for face comparison.",
+          "cameraPermission": "Allow Face Recognition to access your camera for taking photos."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Face Recognition to access your photos.",
+          "savePhotosPermission": "Allow Face Recognition to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Face Recognition needs access to your Camera.",
+          "enableMicrophonePermission": true,
+          "enableFrameProcessors": true,
+          "microphonePermissionText": "Face Recognition needs access to your Microphone."
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "da6c8c7a-fd5a-446c-87e6-dfcf4901982a"
+      }
+    }
+  }
+}
