@@ -1,15 +1,56 @@
+"use strict";
 import "react-native-reanimated";
-import { SafeAreaView, StyleSheet, Text, View, ActivityIndicator, TextInput, TouchableOpacity, Image, PermissionsAndroid, Alert, ScrollView } from "react-native";
+import { SafeAreaView, StyleSheet, Text, View, ActivityIndicator, TextInput, TouchableOpacity, Image, PermissionsAndroid, Alert, ScrollView, Dimensions } from "react-native";
 import { Camera, useCameraDevice, useFrameProcessor, useCodeScanner } from "react-native-vision-camera";
 import DropDownPicker from "react-native-dropdown-picker";
 import Video from "react-native-video";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as VCFaceDetector from "react-native-vision-camera-face-detector";
 import { Worklets } from "react-native-worklets-core";
 import { Ionicons } from "@expo/vector-icons";
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring } from "react-native-reanimated";
 
+const FaceBox = ({ face, isFrontCamera }) => {
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const width = useSharedValue(0);
+  const height = useSharedValue(0);
+  const visible = useSharedValue(0);
+
+  useEffect(() => {
+    const boxWidth = face.width;
+    const boxHeight = face.height;
+    let boxX = face.x;
+
+    if (isFrontCamera) {
+      boxX = SCREEN_WIDTH - (boxX + boxWidth);
+    }
+
+    x.value = withSpring(boxX);
+    y.value = withSpring(face.y);
+    width.value = withSpring(boxWidth);
+    height.value = withSpring(boxHeight);
+    visible.value = withSpring(1);
+  }, [face]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    position: "absolute",
+    transform: [{ translateX: x.value }, { translateY: y.value }],
+    width: width.value,
+    height: height.value,
+    borderWidth: 2,
+    borderColor: "#00ff00",
+    borderRadius: 8,
+    opacity: visible.value,
+  }));
+
+  return <Reanimated.View style={animatedStyle} />;
+};
 export default function App() {
+  const SCREEN_WIDTH = Dimensions.get("window").width;
+  const SCREEN_HEIGHT = Dimensions.get("window").height;
+  const CAMERA_HEIGHT = SCREEN_HEIGHT * 0.5;
   const camera = useRef(null);
   const [cameraPermission, setCameraPermission] = useState();
   const [open, setOpen] = useState(false);
@@ -20,14 +61,13 @@ export default function App() {
   const [flash, setFlash] = useState("off"); //on/off
   const [galleryImage, setGalleryImage] = useState("");
   const [myFaces, setMyFaces] = useState([]);
-  const [cameraType, setCameraType] = useState("front");
+  const [cameraType, setCameraType] = useState(false);
   const [isActive, setIsActive] = useState(true);
-
   const devicesFront = useCameraDevice("front");
-
   const deviceBack = useCameraDevice("back", {
     physicalDevices: ["ultra-wide-angle-camera", "wide-angle-camera", "telephoto-camera"],
   });
+  const [faces, setFaces] = useState([]);
 
   const getAllPermissions = useCallback(async () => {
     PermissionsAndroid.requestMultiple([PermissionsAndroid.PERMISSIONS.CAMERA, PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]).then((result) => {
@@ -50,9 +90,7 @@ export default function App() {
 
   useEffect(() => {
     getAllPermissions();
-    return () => {
-      setIsActive(false);
-    };
+    return () => {};
   }, []);
 
   const faceDetectionOptions = useRef({
@@ -64,15 +102,86 @@ export default function App() {
 
   const { detectFaces } = VCFaceDetector.useFaceDetector(faceDetectionOptions);
 
-  const myFunctionJS = Worklets.createRunOnJS(function (faces) {
-    setMyFaces(faces);
+  // Convert normalized coordinates to screen coordinates
+  const normalizeCoordinates = useCallback(
+    (face) => {
+      const flipX = devicesFront === "front";
+
+      // Scale coordinates to camera view dimensions
+      const boxWidth = face.bounds.width * SCREEN_WIDTH;
+      const boxHeight = face.bounds.height * CAMERA_HEIGHT; // Use camera height for scaling
+
+      let boxX = face.bounds.x * SCREEN_WIDTH;
+      if (flipX) {
+        boxX = SCREEN_WIDTH - (boxX + boxWidth);
+      }
+      // Scale Y coordinate to camera height instead of screen height
+      const boxY = face.bounds.y * CAMERA_HEIGHT;
+      return {
+        width: boxWidth,
+        height: boxHeight,
+        x: Math.max(0, Math.min(boxX, SCREEN_WIDTH - boxWidth)), // Keep within bounds
+        y: Math.max(0, Math.min(boxY, CAMERA_HEIGHT - boxHeight)), // Keep within camera view
+        id: face.trackingId || Math.random().toString(),
+        // Additional face data that might be useful
+        smile: face.smilingProbability,
+        leftEyeOpen: face.leftEyeOpenProbability,
+        rightEyeOpen: face.rightEyeOpenProbability,
+        yawAngle: face.yawAngle,
+        rollAngle: face.rollAngle,
+      };
+    },
+    [cameraType]
+  );
+
+  const onFaceDetected = Worklets.createRunOnJS(function (faces) {
+    const normalizeFaces = faces.map((face) => normalizeCoordinates(face));
+    setFaces(normalizeFaces);
   });
 
   const frameProcessor = useFrameProcessor((frame) => {
     "worklet";
     const faces = detectFaces(frame);
-    myFunctionJS(faces);
+    if (faces.length > 0) {
+      onFaceDetected(faces);
+    }
   }, []);
+  const SmileEmoji = ({ probability }) => {
+    let emoji;
+    if (probability >= 0.7) {
+      emoji = "😄"; // Happy
+    } else if (probability >= 0.4) {
+      emoji = "🙂"; // Neutral
+    } else {
+      emoji = "😐"; // Sad
+    }
+
+    return <Text style={{ fontSize: 24 }}>{emoji}</Text>;
+  };
+
+  const renderFaceDetect = () => {
+    return (
+      <View>
+        <Camera style={[styles.camera, { height: CAMERA_HEIGHT }]} isMirrored={false} frameProcessor={frameProcessor} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï />
+        <Text style={styles.totalFaces}>{`Faces Detect: ${faces?.length}`}</Text>
+        {faces?.map((item, i) => {
+          return (
+            <View key={i} style={styles.faceDetailContainer}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={styles.faceDetailText}>{`Smile Probalility: ${parseFloat(item?.smile)?.toFixed(2)}`}</Text>
+                <SmileEmoji probability={parseFloat(item?.smile)?.toFixed(1)} />
+              </View>
+              <Text style={styles.faceDetailText}>{`Right Eye Open Probability: ${parseFloat(item?.rightEyeOpen)?.toFixed(2)}`}</Text>
+              <Text style={styles.faceDetailText}>{`Left Eye Open Probability: ${parseFloat(item?.leftEyeOpen)?.toFixed(2)}`}</Text>
+            </View>
+          );
+        })}
+        {faces.map((face) => {
+          return <FaceBox key={face?.id} face={face} isFrontCamera={cameraType} />;
+        })}
+      </View>
+    );
+  };
 
   const handleTakePhoto = async () => {
     try {
@@ -89,7 +198,7 @@ export default function App() {
   const renderTakingPhoto = () => {
     return (
       <View>
-        <Camera ref={camera} style={[styles.camera, styles.photoAndVideoCamera]} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï photo />
+        <Camera ref={camera} style={[styles.camera, { height: CAMERA_HEIGHT }, styles.photoAndVideoCamera]} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï photo />
         <TouchableOpacity style={styles.btn} onPress={handleTakePhoto}>
           <Text style={styles.btnText}>Take Photo</Text>
         </TouchableOpacity>
@@ -121,7 +230,7 @@ export default function App() {
   const renderRecordingVideo = () => {
     return (
       <View>
-        <Camera ref={camera} style={[styles.camera, styles.photoAndVideoCamera]} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï video />
+        <Camera ref={camera} style={[styles.camera, { height: CAMERA_HEIGHT }, styles.photoAndVideoCamera]} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï video />
         <View style={styles.btnGroup}>
           <TouchableOpacity style={styles.btn} onPress={handleRecordVideo}>
             <Text style={styles.btnText}>Record Video</Text>
@@ -151,29 +260,11 @@ export default function App() {
   const renderTakingSnapshot = () => {
     return (
       <View>
-        <Camera ref={camera} style={[styles.camera, styles.photoAndVideoCamera]} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï photo />
+        <Camera ref={camera} style={[styles.camera, { height: CAMERA_HEIGHT }, styles.photoAndVideoCamera]} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï photo />
         <TouchableOpacity style={styles.btn} onPress={handleTakeSnapshot}>
           <Text style={styles.btnText}>Take Snapshot</Text>
         </TouchableOpacity>
         {snapshotPath && <Image style={styles.image} source={{ uri: snapshotPath }} />}
-      </View>
-    );
-  };
-
-  const renderFaceDetect = () => {
-    return (
-      <View>
-        <Camera style={[styles.camera]} isMirrored={false} frameProcessor={frameProcessor} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï />
-        <Text style={styles.totalFaces}>{`Faces Detect: ${myFaces?.length}`}</Text>
-        {myFaces?.map((item, i) => {
-          return (
-            <View key={i} style={styles.faceDetailContainer}>
-              <Text style={styles.faceDetailText}>{`Smile Probalility: ${parseFloat(item?.smilingProbability)?.toFixed(2)}`}</Text>
-              <Text style={styles.faceDetailText}>{`Right Eye Open Probability: ${parseFloat(item?.rightEyeOpenProbability)?.toFixed(2)}`}</Text>
-              <Text style={styles.faceDetailText}>{`Left Eye Open Probability: ${parseFloat(item?.leftEyeOpenProbability)?.toFixed(2)}`}</Text>
-            </View>
-          );
-        })}
       </View>
     );
   };
@@ -297,7 +388,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   camera: {
-    height: 350,
     width: "90%",
     alignSelf: "center",
   },
@@ -323,7 +413,7 @@ const styles = StyleSheet.create({
   dropdownPickerWrapper: {
     paddingHorizontal: 16,
     paddingBottom: 16,
-    zIndex: 9,
+    zIndex: 1,
     marginTop: 10,
   },
   btnGroup: {
@@ -350,7 +440,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: -80,
   },
-  faceDetailText: { marginTop: 5, fontSize: 12, color: "red", fontWeight: "500" },
+  faceDetailText: { marginRight: 10, marginTop: 5, fontSize: 12, color: "red", fontWeight: "500" },
   totalFaces: { alignSelf: "center", fontSize: 20, marginTop: 10, fontWeight: "800", color: "#63995f" },
   faceDetailContainer: { paddingHorizontal: 20, marginTop: 10 },
 });
