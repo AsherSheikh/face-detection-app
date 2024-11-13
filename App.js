@@ -1,56 +1,40 @@
-"use strict";
 import "react-native-reanimated";
 import { SafeAreaView, StyleSheet, Text, View, ActivityIndicator, TextInput, TouchableOpacity, Image, PermissionsAndroid, Alert, ScrollView, Dimensions } from "react-native";
 import { Camera, useCameraDevice, useFrameProcessor, useCodeScanner } from "react-native-vision-camera";
 import DropDownPicker from "react-native-dropdown-picker";
 import Video from "react-native-video";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as VCFaceDetector from "react-native-vision-camera-face-detector";
 import { Worklets } from "react-native-worklets-core";
 import { Ionicons } from "@expo/vector-icons";
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring } from "react-native-reanimated";
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, useAnimatedProps } from "react-native-reanimated";
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const CAMERA_HEIGHT = SCREEN_HEIGHT * 0.5;
 
-const FaceBox = ({ face, isFrontCamera }) => {
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const width = useSharedValue(0);
-  const height = useSharedValue(0);
-  const visible = useSharedValue(0);
-
-  useEffect(() => {
-    const boxWidth = face.width;
-    const boxHeight = face.height;
+const FaceBox = React.memo(({ face, isFrontCamera }) => {
+  const animatedProps = useAnimatedProps(() => {
     let boxX = face.x;
 
     if (isFrontCamera) {
-      boxX = SCREEN_WIDTH - (boxX + boxWidth);
+      boxX = SCREEN_WIDTH - (boxX + face.width);
     }
 
-    x.value = withSpring(boxX);
-    y.value = withSpring(face.y);
-    width.value = withSpring(boxWidth);
-    height.value = withSpring(boxHeight);
-    visible.value = withSpring(1);
-  }, [face]);
+    return {
+      transform: [{ translateX: withSpring(boxX, { damping: 20, stiffness: 100 }) }, { translateY: withSpring(face.y, { damping: 20, stiffness: 100 }) }],
+      width: withSpring(face.width, { damping: 20, stiffness: 100 }),
+      height: withSpring(face.height, { damping: 20, stiffness: 100 }),
+      borderWidth: 2,
+      borderColor: "#00ff00",
+      borderRadius: 8,
+    };
+  }, [face, isFrontCamera]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    position: "absolute",
-    transform: [{ translateX: x.value }, { translateY: y.value }],
-    width: width.value,
-    height: height.value,
-    borderWidth: 2,
-    borderColor: "#00ff00",
-    borderRadius: 8,
-    opacity: visible.value,
-  }));
+  return <Reanimated.View animatedProps={animatedProps} style={{ position: "absolute" }} />;
+});
 
-  return <Reanimated.View style={animatedStyle} />;
-};
 export default function App() {
-  const SCREEN_WIDTH = Dimensions.get("window").width;
-  const SCREEN_HEIGHT = Dimensions.get("window").height;
-  const CAMERA_HEIGHT = SCREEN_HEIGHT * 0.5;
   const camera = useRef(null);
   const [cameraPermission, setCameraPermission] = useState();
   const [open, setOpen] = useState(false);
@@ -68,7 +52,12 @@ export default function App() {
     physicalDevices: ["ultra-wide-angle-camera", "wide-angle-camera", "telephoto-camera"],
   });
   const [faces, setFaces] = useState([]);
-
+  const prevFacesRef = useRef([]);
+  const toggleCamera = () => {
+    setCameraType((prev) => !prev);
+    setFaces([]); // Clear faces when switching the camera to avoid stale data
+    prevFacesRef.current = [];
+  };
   const getAllPermissions = useCallback(async () => {
     PermissionsAndroid.requestMultiple([PermissionsAndroid.PERMISSIONS.CAMERA, PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]).then((result) => {
       if (result["android.permission.CAMERA"] === "granted" && result["android.permission.RECORD_AUDIO"] === "granted") {
@@ -134,9 +123,13 @@ export default function App() {
     [cameraType]
   );
 
-  const onFaceDetected = Worklets.createRunOnJS(function (faces) {
-    const normalizeFaces = faces.map((face) => normalizeCoordinates(face));
-    setFaces(normalizeFaces);
+  const onFaceDetected = Worklets.createRunOnJS((faces) => {
+    const normalizedFaces = faces.map((face) => normalizeCoordinates(face));
+    // Update faces only when the length has changed
+    if (normalizedFaces !== prevFacesRef.current) {
+      setFaces(normalizedFaces);
+      prevFacesRef.current = normalizedFaces;
+    }
   });
 
   const frameProcessor = useFrameProcessor((frame) => {
@@ -331,10 +324,7 @@ export default function App() {
             <Text style={styles.headerText}>React Native Camera Libraries</Text>
           </View>
         </SafeAreaView>
-        <TouchableOpacity
-          onPress={() => setCameraType(!cameraType)}
-          style={{ padding: 10, marginHorizontal: 10, marginVertical: 15, borderRadius: 100, alignSelf: "flex-end", backgroundColor: "#3D8361" }}
-        >
+        <TouchableOpacity onPress={() => toggleCamera()} style={{ padding: 10, marginHorizontal: 10, marginVertical: 15, borderRadius: 100, alignSelf: "flex-end", backgroundColor: "#3D8361" }}>
           <Ionicons color={"#fff"} name="camera-reverse" size={20} />
         </TouchableOpacity>
         <View style={styles.dropdownPickerWrapper}>
