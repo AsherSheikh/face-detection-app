@@ -8,7 +8,9 @@ import * as ImagePicker from "expo-image-picker";
 import * as VCFaceDetector from "react-native-vision-camera-face-detector";
 import { Worklets } from "react-native-worklets-core";
 import { Ionicons } from "@expo/vector-icons";
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, useAnimatedProps } from "react-native-reanimated";
+import Reanimated, { withSpring, useAnimatedProps } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
+
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 const CAMERA_HEIGHT = SCREEN_HEIGHT * 0.5;
@@ -16,11 +18,9 @@ const CAMERA_HEIGHT = SCREEN_HEIGHT * 0.5;
 const FaceBox = React.memo(({ face, isFrontCamera }) => {
   const animatedProps = useAnimatedProps(() => {
     let boxX = face.x;
-
     if (isFrontCamera) {
       boxX = SCREEN_WIDTH - (boxX + face.width);
     }
-
     return {
       transform: [{ translateX: withSpring(boxX, { damping: 20, stiffness: 100 }) }, { translateY: withSpring(face.y, { damping: 20, stiffness: 100 }) }],
       width: withSpring(face.width, { damping: 20, stiffness: 100 }),
@@ -44,7 +44,6 @@ export default function App() {
   const [videoPath, setVideoPath] = useState();
   const [flash, setFlash] = useState("off"); //on/off
   const [galleryImage, setGalleryImage] = useState("");
-  const [myFaces, setMyFaces] = useState([]);
   const [cameraType, setCameraType] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const devicesFront = useCameraDevice("front");
@@ -83,10 +82,11 @@ export default function App() {
   }, []);
 
   const faceDetectionOptions = useRef({
-    performanceMode: "fast",
+    performanceMode: "accurate",
     classificationMode: "all",
     autoScale: true,
     trackingEnabled: true,
+    // contourMode:'all',
   }).current;
 
   const { detectFaces } = VCFaceDetector.useFaceDetector(faceDetectionOptions);
@@ -135,6 +135,7 @@ export default function App() {
   const frameProcessor = useFrameProcessor((frame) => {
     "worklet";
     const faces = detectFaces(frame);
+    // console.log(JSON.stringify(faces), JSON.stringify(frame));
     if (faces.length > 0) {
       onFaceDetected(faces);
     }
@@ -157,18 +158,6 @@ export default function App() {
       <View>
         <Camera style={[styles.camera, { height: CAMERA_HEIGHT }]} isMirrored={false} frameProcessor={frameProcessor} device={cameraType ? deviceBack : devicesFront} isActive={isActive} Ï />
         <Text style={styles.totalFaces}>{`Faces Detect: ${faces?.length}`}</Text>
-        {faces?.map((item, i) => {
-          return (
-            <View key={i} style={styles.faceDetailContainer}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text style={styles.faceDetailText}>{`Smile Probalility: ${parseFloat(item?.smile)?.toFixed(2)}`}</Text>
-                <SmileEmoji probability={parseFloat(item?.smile)?.toFixed(1)} />
-              </View>
-              <Text style={styles.faceDetailText}>{`Right Eye Open Probability: ${parseFloat(item?.rightEyeOpen)?.toFixed(2)}`}</Text>
-              <Text style={styles.faceDetailText}>{`Left Eye Open Probability: ${parseFloat(item?.leftEyeOpen)?.toFixed(2)}`}</Text>
-            </View>
-          );
-        })}
         {faces.map((face) => {
           return <FaceBox key={face?.id} face={face} isFrontCamera={cameraType} />;
         })}
@@ -318,32 +307,32 @@ export default function App() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
-        <SafeAreaView style={styles.saveArea}>
-          <View style={styles.header}>
-            <Text style={styles.headerText}>React Native Camera Libraries</Text>
-          </View>
-        </SafeAreaView>
-        <TouchableOpacity onPress={() => toggleCamera()} style={{ padding: 10, marginHorizontal: 10, marginVertical: 15, borderRadius: 100, alignSelf: "flex-end", backgroundColor: "#3D8361" }}>
-          <Ionicons color={"#fff"} name="camera-reverse" size={20} />
-        </TouchableOpacity>
-        <View style={styles.dropdownPickerWrapper}>
-          <DropDownPicker
-            open={open}
-            value={currentExample}
-            items={[
-              { label: "Take Photo", value: "take-photo" },
-              { label: "Record Video", value: "record-video" },
-              { label: "Take Snapshot", value: "take-snapshot" },
-              { label: "Open Gallery", value: "open-gallery" },
-              { label: "Face Detect", value: "face-detect" },
-            ]}
-            setOpen={setOpen}
-            setValue={handleChangePicketSelect}
-          />
+      {/* <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}> */}
+      <SafeAreaView style={styles.saveArea}>
+        <View style={styles.header}>
+          <Text style={styles.headerText}>With Vision Camera</Text>
         </View>
-        {renderContent()}
-      </ScrollView>
+      </SafeAreaView>
+      <TouchableOpacity onPress={() => toggleCamera()} style={{ padding: 10, marginHorizontal: 10, marginVertical: 15, borderRadius: 100, alignSelf: "flex-end", backgroundColor: "#567cff" }}>
+        <Ionicons color={"#fff"} name="camera-reverse" size={20} />
+      </TouchableOpacity>
+      <View style={styles.dropdownPickerWrapper}>
+        <DropDownPicker
+          open={open}
+          value={currentExample}
+          items={[
+            { label: "Take Photo", value: "take-photo" },
+            { label: "Record Video", value: "record-video" },
+            { label: "Take Snapshot", value: "take-snapshot" },
+            { label: "Open Gallery", value: "open-gallery" },
+            { label: "Face Detect", value: "face-detect" },
+          ]}
+          setOpen={setOpen}
+          setValue={handleChangePicketSelect}
+        />
+      </View>
+      {renderContent()}
+      {/* </ScrollView> */}
     </View>
   );
 }
@@ -354,12 +343,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2E6",
   },
   saveArea: {
-    backgroundColor: "#3D8361",
+    backgroundColor: "#567cff",
   },
   header: {
     paddingTop: 40,
     paddingBottom: 10,
-    backgroundColor: "#3D8361",
+    backgroundColor: "#567cff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -411,7 +400,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   btn: {
-    backgroundColor: "#63995f",
+    backgroundColor: "#567cff",
     margin: 13,
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -431,6 +420,6 @@ const styles = StyleSheet.create({
     bottom: -80,
   },
   faceDetailText: { marginRight: 10, marginTop: 5, fontSize: 12, color: "red", fontWeight: "500" },
-  totalFaces: { alignSelf: "center", fontSize: 20, marginTop: 10, fontWeight: "800", color: "#63995f" },
+  totalFaces: { alignSelf: "center", fontSize: 20, marginTop: 10, fontWeight: "800", color: "#567cff" },
   faceDetailContainer: { paddingHorizontal: 20, marginTop: 10 },
 });
